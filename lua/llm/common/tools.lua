@@ -857,4 +857,370 @@ function M.flexi_handler(name, F, state, _, prompt, opts)
   end
 end
 
+-- ========== My Custom App Handler ========== --
+-- This is a template handler
+function M.Template_interact_on_selected_handler(name, _, state, streaming, prompt, title, width, height)
+  local selected_text = F.GetVisualSelection()
+
+  local input_box = Popup({
+    enter = true,
+    border = {
+      style = "solid",
+      text = {
+        top = NuiText(" 󱜙 " .. title .. " ", "CurSearch"),
+        top_align = "center",
+      },
+    },
+  })
+
+  local separator = Popup({
+    border = {
+      style = "none",
+    },
+    enter = false,
+    focusable = false,
+    win_options = {
+      winblend = 0,
+      winhighlight = "Normal:Normal",
+    },
+  })
+
+  local preview_box = Popup({
+    focusable = true,
+    border = {
+      style = "solid",
+      text = {
+        top = "",
+        top_align = "center",
+      },
+    },
+  })
+
+  local layout = F.CreateLayout(
+    width .. "%",
+    height .. "%",
+    Layout.Box({
+      Layout.Box(input_box, { size = "15%" }),
+      Layout.Box(separator, { size = "1%" }),
+      Layout.Box(preview_box, { size = "84%" }),
+    }, { dir = "col" })
+  )
+
+  layout:mount()
+  vim.api.nvim_command("startinsert")
+
+  F.SetBoxOpts({ preview_box }, {
+    filetype = { "markdown", "markdown" },
+    buftype = "nofile",
+    spell = false,
+    number = false,
+    wrap = true,
+    linebreak = false,
+  })
+
+  local worker = {
+    job = nil,
+  }
+
+  state.app["session"][name] = {}
+  input_box:map("n", "<enter>", function()
+    -- clear preview_box content [optional]
+    vim.api.nvim_buf_set_lines(preview_box.bufnr, 0, -1, false, {})
+
+    local input_table = vim.api.nvim_buf_get_lines(input_box.bufnr, 0, -1, true)
+    local input = table.concat(input_table, "\n")
+
+    -- clear input_box content
+    vim.api.nvim_buf_set_lines(input_box.bufnr, 0, -1, false, {})
+    if input ~= "" then
+      table.insert(state.app.session[name], {
+        role = "user",
+        content = prompt .. "\n" .. selected_text .. "\n" .. input,
+      })
+      state.popwin = preview_box
+      worker = streaming(preview_box.bufnr, preview_box.winid, state.app.session[name])
+    end
+  end)
+
+  input_box:map("i", "<C-s>", function()
+    -- clear preview_box content [optional]
+    vim.api.nvim_buf_set_lines(preview_box.bufnr, 0, -1, false, {})
+
+    local input_table = vim.api.nvim_buf_get_lines(input_box.bufnr, 0, -1, true)
+    local input = table.concat(input_table, "\n")
+
+    -- clear input_box content
+    vim.api.nvim_buf_set_lines(input_box.bufnr, 0, -1, false, {})
+    if input ~= "" then
+      table.insert(state.app.session[name], {
+        role = "user",
+        content = prompt .. "\n" .. selected_text .. "\n" .. input,
+      })
+      state.popwin = preview_box
+      worker = streaming(preview_box.bufnr, preview_box.winid, state.app.session[name])
+    end
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "n", true)
+  end)
+
+  input_box:map("n", { "J", "K" }, function()
+    vim.api.nvim_set_current_win(preview_box.winid)
+  end)
+  preview_box:map("n", { "J", "K" }, function()
+    vim.api.nvim_set_current_win(input_box.winid)
+  end)
+
+  for _, v in ipairs({ input_box, preview_box }) do
+    v:map("n", { "<esc>", "q", "<C-c>" }, function()
+      if worker.job then
+        worker.job:shutdown()
+        print("Suspend output...")
+        vim.wait(200, function() end)
+        worker.job = nil
+      end
+      layout:unmount()
+    end)
+
+    v:map("i", { "<C-c>" }, function()
+      if worker.job then
+        worker.job:shutdown()
+        print("Suspend output...")
+        vim.wait(200, function() end)
+        worker.job = nil
+      end
+      layout:unmount()
+    end)
+
+    v:map("n", { "<C-c>", "N", "n" }, function()
+      if worker.job then
+        worker.job:shutdown()
+        print("Suspend output...")
+        vim.wait(200, function() end)
+        worker.job = nil
+      end
+      layout:unmount()
+    end)
+
+    v:map("n", { "Y", "y" }, function()
+      vim.api.nvim_set_current_win(preview_box.winid)
+      vim.api.nvim_command("normal! ggVG$y")
+      layout:unmount()
+    end)
+  end
+end
+
+-- This is a template handler
+function M.Template_preview_on_selected_handler(name, _, state, streaming, prompt, title, width, height)
+  local selected_text = F.GetVisualSelection()
+
+  local preview_box = Popup({
+    -- focusable = true,
+    enter = true,
+    border = {
+      style = "solid",
+      text = {
+        top = NuiText(" 󱜙 " .. title .. " ", "CurSearch"),
+        top_align = "center",
+      },
+    },
+  })
+
+  local layout = F.CreateLayout(
+    width .. "%",
+    height .. "%",
+    Layout.Box({ Layout.Box(preview_box, {
+      size = "90%",
+    }) }, {
+      dir = "col",
+    })
+  )
+
+  layout:mount()
+
+  F.SetBoxOpts({ preview_box }, {
+    filetype = { "markdown", "markdown" },
+    buftype = "nofile",
+    spell = false,
+    number = false,
+    wrap = true,
+    linebreak = false,
+  })
+
+  local worker = {
+    job = nil,
+  }
+
+  state.app["session"][name] = {}
+  table.insert(state.app.session[name], {
+    role = "user",
+    content = prompt .. "\n" .. selected_text,
+  })
+  state.popwin = preview_box
+  worker = streaming(preview_box.bufnr, preview_box.winid, state.app.session[name])
+
+  preview_box:map("n", { "<esc>", "q", "<C-c>" }, function()
+    if worker.job then
+      worker.job:shutdown()
+      print("Suspend output...")
+      vim.wait(200, function() end)
+      worker.job = nil
+    end
+    layout:unmount()
+  end)
+
+  preview_box:map("n", { "Y", "y" }, function()
+    vim.api.nvim_set_current_win(preview_box.winid)
+    vim.api.nvim_command("normal! ggVG$y")
+    layout:unmount()
+  end)
+end
+
+-- This is a template handler
+function M.Template_qa_handler(name, _, state, streaming, prompt, title, width, height)
+  local options = {
+    query = {
+      title = title,
+      hl = { link = "CurSearch" },
+    },
+    buftype = "nofile",
+    spell = false,
+    number = false,
+    wrap = true,
+    linebreak = false,
+  }
+
+  options = vim.tbl_deep_extend("force", options, {})
+  local fetch_key = options.fetch_key and options.fetch_key or conf.configs.fetch_key
+  vim.api.nvim_set_hl(0, "LLMQuery", options.query.hl)
+
+  local input_box = Popup({
+    enter = true,
+    border = {
+      style = "solid",
+      text = {
+        top = NuiText(options.query.title, "LLMQuery"),
+        top_align = "center",
+      },
+    },
+  })
+
+  local separator = Popup({
+    border = { style = "none" },
+    enter = false,
+    focusable = false,
+    win_options = { winblend = 0, winhighlight = "Normal:Normal" },
+  })
+
+  local preview_box = Popup({
+    focusable = true,
+    border = { style = "solid", text = { top = "", top_align = "center" } },
+  })
+
+  local layout = F.CreateLayout(
+    width .. "%",
+    height .. "%",
+    Layout.Box({
+      Layout.Box(input_box, { size = "15%" }),
+      Layout.Box(separator, { size = "1%" }),
+      Layout.Box(preview_box, { size = "84%" }),
+    }, { dir = "col" })
+  )
+
+  layout:mount()
+  vim.api.nvim_command("startinsert")
+
+  F.SetBoxOpts({ preview_box }, {
+    filetype = { "markdown", "markdown" },
+    buftype = options.buftype,
+    spell = options.spell,
+    number = options.number,
+    wrap = options.wrap,
+    linebreak = options.linebreak,
+  })
+
+  local worker = { job = nil }
+
+  state.app["session"][name] = {}
+  input_box:map("n", { "<enter>", "<C-c>" }, function()
+    -- clear preview_box content [optional]
+    vim.api.nvim_buf_set_lines(preview_box.bufnr, 0, -1, false, {})
+
+    local input_table = vim.api.nvim_buf_get_lines(input_box.bufnr, 0, -1, true)
+    local input = table.concat(input_table, "\n")
+
+    -- clear input_box content
+    vim.api.nvim_buf_set_lines(input_box.bufnr, 0, -1, false, {})
+    if input ~= "" then
+      table.insert(state.app.session[name], { role = "user", content = prompt .. "\n" .. input })
+      state.popwin = preview_box
+      worker = streaming(
+        preview_box.bufnr,
+        preview_box.winid,
+        state.app.session[name],
+        fetch_key,
+        options.url,
+        options.model,
+        options.api_type
+      )
+    end
+  end)
+
+  input_box:map("i", "<C-s>", function()
+    -- clear preview_box content [optional]
+    vim.api.nvim_buf_set_lines(preview_box.bufnr, 0, -1, false, {})
+
+    local input_table = vim.api.nvim_buf_get_lines(input_box.bufnr, 0, -1, true)
+    local input = table.concat(input_table, "\n")
+
+    -- clear input_box content
+    vim.api.nvim_buf_set_lines(input_box.bufnr, 0, -1, false, {})
+    if input ~= "" then
+      table.insert(state.app.session[name], { role = "user", content = prompt .. "\n" .. input })
+      state.popwin = preview_box
+      worker = streaming(
+        preview_box.bufnr,
+        preview_box.winid,
+        state.app.session[name],
+        fetch_key,
+        options.url,
+        options.model,
+        options.api_type
+      )
+    end
+  end)
+
+  input_box:map("n", { "J", "K" }, function()
+    vim.api.nvim_set_current_win(preview_box.winid)
+  end)
+  preview_box:map("n", { "J", "K" }, function()
+    vim.api.nvim_set_current_win(input_box.winid)
+  end)
+
+  for _, v in ipairs({ input_box, preview_box }) do
+    v:map("n", { "<esc>", "q", "<C-c>" }, function()
+      if worker.job then
+        worker.job:shutdown()
+        print("Suspend output...")
+        vim.wait(200, function() end)
+        worker.job = nil
+      end
+      layout:unmount()
+    end)
+
+    v:map("i", { "<esc>", "<C-c>" }, function()
+      if worker.job then
+        worker.job:shutdown()
+        print("Suspend output...")
+        vim.wait(200, function() end)
+        worker.job = nil
+      end
+      layout:unmount()
+    end)
+
+    v:map("n", { "Y", "y" }, function()
+      vim.api.nvim_set_current_win(preview_box.winid)
+      vim.api.nvim_command("normal! ggVGky")
+      layout:unmount()
+    end)
+  end
+end
 return M

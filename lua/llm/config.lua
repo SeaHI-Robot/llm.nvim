@@ -5,17 +5,23 @@ local function get_win_width()
   return vim.o.columns
 end
 
--- default box width
-local input_box_width = math.floor(get_win_width() * 0.7)
-local input_box_start = math.floor(get_win_width() * 0.15)
+local function get_win_height()
+  return vim.o.lines
+end
 
-local history_box_width = 27
+-- default box width
+local input_box_width = math.floor(get_win_width() * 0.9)
+local input_box_start = math.floor(get_win_width() * 0.05)
+
+local history_box_width = 35
 local output_box_start = input_box_start
 
-local output_box_width = math.floor(get_win_width() * 0.7 - history_box_width - 2)
-local history_box_start = math.floor(output_box_start + get_win_width() * 0.7 - history_box_width)
+local output_box_width = math.floor(get_win_width() * 0.9 - history_box_width - 2)
+local history_box_start = math.floor(output_box_start + get_win_width() * 0.9 - history_box_width)
 
 local HOME = ""
+local input_box_height = math.floor(get_win_height() * 0.15)
+local output_and_history_box_height = math.floor(get_win_height()) - input_box_height - 4
 
 local uname = luv.os_uname()
 if uname.sysname == "Linux" or uname.sysname == "Darwin" then
@@ -29,11 +35,11 @@ M._ = {}
 M._.input_box_opts = {
   relative = "editor",
   position = {
-    row = "85%",
+    row = "100%",
     col = input_box_start,
   },
   size = {
-    height = "5%",
+    height = input_box_height,
     width = input_box_width,
   },
   enter = true,
@@ -47,24 +53,25 @@ M._.input_box_opts = {
     },
   },
   win_options = {
-    winblend = 0,
-    winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
+    winblend = winblend,
+    winhighlight = "Normal:Normal,FloatBorder:Normal",
   },
 }
 
 M._.output_box_opts = {
+  style = "float", -- right | left | above | below | float
   relative = "editor",
   position = {
-    row = "35%",
+    row = "0%",
     col = output_box_start,
   },
   size = {
-    height = "65%",
+    height = output_and_history_box_height,
     width = output_box_width,
   },
   enter = true,
   focusable = true,
-  zindex = 20,
+  zindex = 50,
   border = {
     style = "rounded",
     text = {
@@ -73,22 +80,22 @@ M._.output_box_opts = {
     },
   },
   win_options = {
-    winblend = 0,
-    winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
+    winblend = winblend,
+    winhighlight = "Normal:Normal,FloatBorder:Normal",
   },
 }
 
 M._.history_box_opts = {
   relative = "editor",
   position = {
-    row = "35%",
+    row = "0%",
     col = history_box_start,
   },
   size = {
-    height = "65%",
+    height = output_and_history_box_height,
     width = history_box_width,
   },
-  zindex = 70,
+  zindex = 50,
   enter = false,
   focusable = false,
   border = {
@@ -99,8 +106,8 @@ M._.history_box_opts = {
     },
   },
   win_options = {
-    winblend = 0,
-    winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
+    winblend = winblend,
+    winhighlight = "Normal:Normal,FloatBorder:Normal",
   },
 }
 
@@ -111,8 +118,8 @@ M._.popwin_opts = {
     col = 10,
   },
   size = {
-    height = 10,
-    width = "60%",
+    height = 25,
+    width = "70%",
   },
   enter = true,
   focusable = true,
@@ -125,15 +132,15 @@ M._.popwin_opts = {
     },
   },
   win_options = {
-    winblend = 0,
-    winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
+    winblend = winblend,
+    winhighlight = "Normal:Normal,FloatBorder:Normal",
   },
 }
 
 -- support icons
 M.prefix = {
-  user = { text = "", hl = "" },
-  assistant = { text = "", hl = "" },
+  user = { text = " 😃  ", hl = "Title" },
+  assistant = { text = " 🤖   ", hl = "Added" },
 }
 
 -- default configs
@@ -148,7 +155,8 @@ M.configs = {
   temperature = nil,
   top_p = nil,
   style = "float", -- right | left | above | below | float
-  spinner = { text = { "-", "\\", "|", "/" }, hl = "Title" },
+  -- spinner = { text = { "-", "\\", "|", "/" }, hl = "Title" },
+  spinner = { text = { "󰧞󰧞", "󰧞󰧞", "󰧞󰧞", "󰧞󰧞" }, hl = "Title" },
 
   prefix = {
     user = { text = "## User \n", hl = "Title" },
@@ -157,7 +165,7 @@ M.configs = {
 
   history_path = HOME .. "/.local/state/nvim/llm-history",
   max_history_files = 15,
-  max_history_name_length = 10,
+  max_history_name_length = 27,
   save_session = true,
 
   input_box_opts = M._.input_box_opts,
@@ -178,15 +186,20 @@ M.configs = {
     },
   },
   -- stylua: ignore
+
   keys = {
     -- The keyboard mapping for the input window.
-    ["Input:Submit"]  = { mode = "i", key = "<C-g>" },
-    ["Input:Cancel"]  = { mode = "i", key = "<C-c>" },
-    ["Input:Resend"]  = { mode = "i", key = "<C-r>" },
+    ["Input:Submit-n"] = { mode = "n", key = { "<cr>", "<C-s>" } },
+    ["Input:Submit-i"] = { mode = "i", key = "<C-s>" },
+    ["Input:Resend"]  = { mode = { "i", "n" }, key = "<C-r>" },
+    ["Input:Cancel"]  = { mode = "n", key = "<C-x>" },
+    ["Input:SwitchToPreview"] = { mode = { "n", "i" }, key = "<C-w>" },
 
     -- only works when "save_session = true"
-    ["Input:HistoryNext"]  = { mode = "i", key = "<C-j>" },
-    ["Input:HistoryPrev"]  = { mode = "i", key = "<C-k>" },
+    ["Input:HistoryNext"] = { mode = { "n", "i" }, key = "<C-j>" },
+    ["Input:HistoryPrev"] = { mode = { "n", "i" }, key = "<C-k>" },
+    ["Output:HistoryNext"] = { mode = { "n", "i", "v" }, key = "<C-j>" },
+    ["Output:HistoryPrev"] = { mode = { "n", "i", "v" }, key = "<C-k>" },
 
     -- The keyboard mapping for the output window in "split" style.
     ["Output:Ask"]  = { mode = "n", key = "i" },
@@ -194,8 +207,10 @@ M.configs = {
     ["Output:Resend"]  = { mode = "n", key = "<C-r>" },
 
     -- The keyboard mapping for the output and input windows in "float" style.
-    ["Session:Toggle"] = { mode = "n", key = "<leader>ac" },
-    ["Session:Close"]  = { mode = "n", key = "<esc>" },
+    ["Session:Toggle"] = { mode = "n", key = "<localleader>l" },
+    ["Session:Close-n"] = { mode = "n", key = { "<esc>", "q", "<C-c>" } },
+    ["Session:Close-i"] = { mode = "i", key = { "<C-c>" } },
+    ["Session:SwitchFromOutputToInput"] = { mode = { "n", "i" }, key = "<C-w>" },
   },
 }
 

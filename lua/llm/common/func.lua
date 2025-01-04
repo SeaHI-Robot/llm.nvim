@@ -353,8 +353,7 @@ function M.CloseLLM()
         ["\n"] = " ",
         ["\r"] = " ",
       })
-
-      filename = string.format("%s/%s-%s.json", conf.configs.history_path, _filename, os.date("%Y%m%d%H%M%S"))
+      filename = string.format("%s/%s_%s.json", conf.configs.history_path, _filename, os.date("%y_%m_%d_"))
     end
     local file = io.open(filename, "w")
     file:write(vim.fn.json_encode(state.session[state.session.filename]))

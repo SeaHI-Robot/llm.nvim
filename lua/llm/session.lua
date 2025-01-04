@@ -51,7 +51,7 @@ function M.LLMSelectedTextHandler(description)
   )
 
   for k, v in pairs(conf.configs.keys) do
-    if k == "Session:Close" then
+    if k == "Session:Close-n" then
       F.WinMapping(state.popwin, v.mode, v.key, function()
         if state.llm.worker.job then
           state.llm.worker.job:shutdown()
@@ -61,6 +61,18 @@ function M.LLMSelectedTextHandler(description)
           vim.api.nvim_command("doautocmd BufEnter")
         end
         state.popwin:unmount()
+      end, { noremap = true })
+    elseif k == "Session:Close-i" then
+      F.WinMapping(state.popwin, v.mode, v.key, function()
+        if state.llm.worker.job then
+          state.llm.worker.job:shutdown()
+          LOG:INFO("Suspend output...")
+          vim.wait(200, function() end)
+          state.llm.worker.job = nil
+          vim.api.nvim_command("doautocmd BufEnter")
+        end
+        state.popwin:unmount()
+        vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, true, true), "n", true)
       end, { noremap = true })
     elseif k == "Output:Cancel" then
       F.WinMapping(state.popwin, v.mode, v.key, F.CancelLLM, { noremap = true, silent = true })
@@ -170,7 +182,7 @@ function M.NewSession()
 
       -- set keymaps
       for k, v in pairs(conf.configs.keys) do
-        if k == "Session:Close" then
+        if k == "Session:Close-n" then
           F.WinMapping(llm_popup, v.mode, v.key, function()
             F.CloseLLM()
             vim.api.nvim_exec_autocmds("User", { pattern = "CloseInput" })
@@ -178,8 +190,40 @@ function M.NewSession()
             conf.session.status = -1
             vim.api.nvim_command("doautocmd BufEnter")
           end, { noremap = true })
+        elseif k == "Session:Close-i" then
+          F.WinMapping(llm_popup, v.mode, v.key, function()
+            F.CloseLLM()
+            vim.api.nvim_exec_autocmds("User", { pattern = "CloseInput" })
+            vim.api.nvim_exec_autocmds("User", { pattern = "CloseHistory" })
+            conf.session.status = -1
+            vim.api.nvim_command("doautocmd BufEnter")
+            vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, true, true), "n", true)
+          end, { noremap = true })
         elseif k == "Session:Toggle" then
           F.WinMapping(llm_popup, v.mode, v.key, F.ToggleLLM, { noremap = true })
+        elseif k == "Session:SwitchFromOutputToInput" then
+          F.WinMapping(llm_popup, "n", v.key, function()
+            vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-w>w<C-w>w", true, false, true), "n", true)
+            vim.notify("Switched to Input", vim.log.levels.INFO, { title = "llm.nvim" })
+          end, { noremap = true, silent = true })
+          F.WinMapping(llm_popup, "i", v.key, function()
+            vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc><C-w>w<C-w>w", true, false, true), "n", true)
+            vim.notify("Switched to Input", vim.log.levels.INFO, { title = "llm.nvim" })
+          end, { noremap = true, silent = true })
+        elseif conf.configs.save_session and k == "Output:HistoryPrev" and conf.configs.style == "float" then
+          F.WinMapping(llm_popup, "i", v.key, function()
+            F.MoveHistoryCursor(-1)
+          end, { noremap = true, silent = true })
+          F.WinMapping(llm_popup, "n", v.key, function()
+            F.MoveHistoryCursor(-1)
+          end, { noremap = true, silent = true })
+        elseif conf.configs.save_session and k == "Output:HistoryNext" and conf.configs.style == "float" then
+          F.WinMapping(llm_popup, "i", v.key, function()
+            F.MoveHistoryCursor(1)
+          end, { noremap = true, silent = true })
+          F.WinMapping(llm_popup, "n", v.key, function()
+            F.MoveHistoryCursor(1)
+          end, { noremap = true, silent = true })
         end
       end
       uin.SetInput(bufnr, winid)
